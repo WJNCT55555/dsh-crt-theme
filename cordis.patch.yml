@@ -1,0 +1,7 @@
+# dsh-crt-theme bundle patch: inserts the CRT theme plugin into a profile's
+# layer stack. Installed as one profile layer (see profiles/web/package.json
+# `dsh.profile.bundles`), or insert the same row into the profile's own
+# cordis.patch.yml for a hot-reloaded user-layer install.
+- insert:
+    - id: dsh-crt-theme
+      name: '@dsh-external/dsh-crt-theme'

@@ -1,0 +1,16 @@
+{
+  "id": "@dsh-external/dsh-crt-theme",
+  "version": "0.8.1",
+  "main": "./lib/index.js",
+  "description": "Dual-palette CRT terminal skin for DSH Web: Unit-02 black/red/orange/amber and Unit-01 violet/acid-green instruments with fine CRT meters and scan-striped branding.",
+  "engines": {
+    "dsh": ">=0.0.1"
+  },
+  "contributes": {
+    "tools": [],
+    "skills": []
+  },
+  "client": {
+    "main": "./lib/client.js"
+  }
+}
