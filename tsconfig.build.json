@@ -9,6 +9,7 @@
     "noUncheckedIndexedAccess": true,
     "skipLibCheck": true,
     "esModuleInterop": true,
+    "allowImportingTsExtensions": true,
     "declaration": true,
     "emitDeclarationOnly": true,
     "sourceMap": true,

@@ -1,8 +1,13 @@
 /**
  * dsh-crt-theme browser half: installs the DeepSeek CRT token layer through
- * the DSH theme service and runs the CRT hardware-effect layer (scanlines,
- * vignette, flicker) toggled by Ctrl/Cmd+Shift+Alt+C. Ctrl/Cmd+Shift+Alt+P
- * changes between the Unit-02 and Unit-01 CRT palettes.
+ * the DSH theme service, runs the CRT hardware-effect layer (scanlines,
+ * vignette, flicker), and contributes the skin's panel to DSH Settings.
+ *
+ * The Settings panel owns both switches — the CRT color scheme and the
+ * hardware-effect layer — plus the palette picker; the panel's own row keeps
+ * working while the color scheme is off, because only the token layer is
+ * released, never the panel. Ctrl/Cmd+Shift+Alt+C and Ctrl/Cmd+Shift+Alt+P
+ * remain as shortcuts over the same preferences.
  *
  * Both palettes are dark alias-token overrides that preserve their intended
  * surface regardless of DSH's underlying base preference. Effects are

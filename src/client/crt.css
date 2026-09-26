@@ -243,6 +243,14 @@ html.dsh-crt-active select {
   box-shadow: inset 0 0 16px var(--crt-input-shadow);
 }
 
+/* The caret layer, visible glyph layer, and height mirror require identical text metrics. */
+html.dsh-crt-active [class*='_card']:has(textarea[class*='_input'])
+  :is(textarea[class*='_input'], [class*='_backdrop'], [class*='_mirror']) {
+  font-family: var(--dsw-font-family) !important;
+  font-stretch: normal;
+  letter-spacing: normal;
+}
+
 /* DSH paints composer glyphs in the backdrop below a transparent textarea. */
 html.dsh-crt-active [class*='_card']:has(textarea[class*='_input']) textarea[class*='_input'] {
   color: transparent !important;

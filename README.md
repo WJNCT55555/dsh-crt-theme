@@ -27,7 +27,14 @@ dsh web
 
 The bundle inserts the `dsh-crt-theme` loader row. If the profile already contains the row, remove the duplicate before enabling the bundle.
 
-The skin installs a caller-owned DSH theme token layer when it loads. Unloading the plugin restores the normal DSH palette preference.
+The skin installs a caller-owned DSH theme token layer when it loads. Unloading the plugin restores the normal DSH palette preference, and the Settings panel can release the same layer without unloading the plugin.
+
+Installing from a local checkout with `link:` keeps the profile pointing at this directory, so a rebuild takes effect without reinstalling:
+
+```powershell
+pnpm install
+pnpm run build
+```
 
 ## Visual system
 
@@ -38,7 +45,7 @@ The skin installs a caller-owned DSH theme token layer when it loads. Unloading 
 - The skin leaves compact icon buttons to their owning DSH components, so fixed-size toolbars retain their original geometry.
 - Page-view tabs remain transparent labels; their selected state uses a short left indicator and an underline instead of a button container.
 - Task and completion tracks use a thin diagonal CRT fill; the context breakdown keeps its semantic colors in dense 3 px vertical cells.
-- The conversation composer keeps DSH's transparent editing layer so its backdrop-rendered draft text remains visible over the dark CRT surface.
+- The conversation composer keeps DSH's transparent editing layer and shared text metrics so backdrop-rendered draft text stays visible and aligned with the native caret.
 - A blank conversation opens with `DEEPSEEK、袭来` and a scan-striped DeepSeek whale mark; the sidebar carries the same mark.
 - Brand text and session rows remain unframed navigation text, using only hover fill and a short selected-state indicator.
 - The existing DSH shell stays intact: the skin adds no tactical status bar or decorative header above the product chrome.
@@ -46,10 +53,22 @@ The skin installs a caller-owned DSH theme token layer when it loads. Unloading 
 
 ## Controls
 
+### Settings panel
+
+The skin contributes its own section to DSH **Settings** (the section is labeled `CRT 主题`). It carries two independent switches and the palette picker:
+
+- **启用 CRT 配色** — releases or reinstalls the skin's theme token layer. Turning it off restores DSH's own palette immediately; the panel stays in place, so the switch is always reachable.
+- **硬件特效** — turns the scanline, grille, vignette, and phosphor-flicker layer on or off without touching the palette.
+- **配色方案** — picks between the Unit-02 and Unit-01 palettes, previewed by a color swatch on each card.
+
+Every change applies immediately and is persisted; the panel and the shortcuts below write to the same preferences, so they never disagree.
+
+### Shortcuts and API
+
 - `Ctrl+Shift+Alt+C` on Windows/Linux, or `Cmd+Shift+Alt+C` on macOS: toggle scanlines, vignette, grille, and phosphor flicker.
 - `Ctrl+Shift+Alt+P` on Windows/Linux, or `Cmd+Shift+Alt+P` on macOS: switch between Unit-02 and Unit-01 CRT palettes.
 - `window.DSHCRT.enable()`, `.disable()`, `.toggle()`, `.setScheme('unit02' | 'unit01')`, and `.toggleScheme()` are available for local development. The former `amber` and `violet` inputs remain accepted as aliases.
-- The selected CRT palette is stored under `dsh-crt-theme:scheme`; the hardware-effect toggle is stored under `dsh-crt-theme:effects`.
+- Preferences are stored under `dsh-crt-theme:enabled`, `dsh-crt-theme:effects`, and `dsh-crt-theme:scheme`.
 
 The effect layer respects `prefers-reduced-motion` and removes all global state when the plugin is unloaded.
 

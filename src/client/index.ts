@@ -1,8 +1,13 @@
 /**
  * dsh-crt-theme browser half: installs the DeepSeek CRT token layer through
- * the DSH theme service and runs the CRT hardware-effect layer (scanlines,
- * vignette, flicker) toggled by Ctrl/Cmd+Shift+Alt+C. Ctrl/Cmd+Shift+Alt+P
- * changes between the Unit-02 and Unit-01 CRT palettes.
+ * the DSH theme service, runs the CRT hardware-effect layer (scanlines,
+ * vignette, flicker), and contributes the skin's panel to DSH Settings.
+ *
+ * The Settings panel owns both switches — the CRT color scheme and the
+ * hardware-effect layer — plus the palette picker; the panel's own row keeps
+ * working while the color scheme is off, because only the token layer is
+ * released, never the panel. Ctrl/Cmd+Shift+Alt+C and Ctrl/Cmd+Shift+Alt+P
+ * remain as shortcuts over the same preferences.
  *
  * Both palettes are dark alias-token overrides that preserve their intended
  * surface regardless of DSH's underlying base preference. Effects are
@@ -13,21 +18,27 @@
 import type { Context } from '@deepseek-ai/cordis'
 import { createElement, useId } from 'react'
 import './crt.css'
+import {
+  getPreferences,
+  normalizeScheme,
+  subscribePreferences,
+  updatePreferences,
+} from './settings.ts'
+import type { CrtScheme, CrtSchemeInput } from './settings.ts'
+import { CrtSettingsPanel } from './settings-panel.tsx'
 
 /** Stable source id for the CRT theme's token override layer. */
 export const THEME_ID = 'dsh-crt'
-
-/** localStorage key persisting whether the hardware-effect layer is on. */
-const EFFECTS_STORAGE_KEY = 'dsh-crt-theme:effects'
-
-/** localStorage key persisting the selected CRT palette. */
-const SCHEME_STORAGE_KEY = 'dsh-crt-theme:scheme'
 
 /** Class gating every CRT overlay effect in crt.css. */
 const ACTIVE_CLASS = 'dsh-crt-active'
 
 /** Document attribute carrying the selected CRT palette to crt.css. */
 const SCHEME_ATTRIBUTE = 'data-dsh-crt-scheme'
+
+/** Settings-dialog entry id and nav label for this skin's panel. */
+const SETTINGS_SECTION_ID = 'dsh-crt-theme'
+const SETTINGS_SECTION_LABEL = 'CRT 主题'
 
 /** Copy shown in the blank conversation hero while the CRT skin is installed. */
 const HERO_HEADLINE = 'DEEPSEEK、袭来'
@@ -244,12 +255,6 @@ const UNIT01_TOKENS: Record<string, string> = {
   '--dsw-specific-tip': 'rgba(167, 237, 40, 0.08)',
 }
 
-/** Names of the visual schemes supplied by this skin. */
-type CrtScheme = 'unit02' | 'unit01'
-
-/** Current scheme names plus the two pre-EVA aliases accepted by the local API. */
-type CrtSchemeInput = CrtScheme | 'amber' | 'violet'
-
 /** Palette tokens keyed by the user-selectable CRT scheme. */
 const SCHEME_TOKENS: Readonly<Record<CrtScheme, Record<string, string>>> = {
   unit02: UNIT02_TOKENS,
@@ -263,15 +268,30 @@ function schemeOverrides(scheme: CrtScheme): Record<string, { light: string; dar
   )
 }
 
-/** Resolve current and legacy public inputs to one stored scheme name. */
-function normalizeScheme(scheme: CrtSchemeInput): CrtScheme {
-  return scheme === 'unit01' || scheme === 'violet' ? 'unit01' : 'unit02'
-}
-
 /** Minimal theme face needed by this package's dynamic client half. */
 interface CrtThemeService {
   /** Install a caller-owned token layer and return its disposer. */
   overrideTokens(source: string, tokens: Record<string, { light: string; dark: string }>): () => void
+}
+
+/** Slot-registration options this skin supplies. */
+interface CrtSlotRegistration {
+  /** Target slot name. */
+  readonly name: string
+  /** Stable id inside a multi-entry slot. */
+  readonly id?: string
+  /** Display order inside the slot. */
+  readonly order?: number
+  /** Nav label, resolved at read time so it follows the active locale. */
+  readonly label?: () => string
+}
+
+/** Minimal slots face used by this self-contained browser skin. */
+interface CrtSlotsService {
+  /** Register a component at a named client UI slot. */
+  register(spec: CrtSlotRegistration, component: (props: unknown) => unknown): unknown
+  /** Install slot registrations when their host package is ready. */
+  inject(slotName: string, install: () => unknown): void
 }
 
 /** Props supplied by the conversation hero's brand-mark slot. */
@@ -280,14 +300,6 @@ interface CrtHeroBrandMarkProps {
   readonly size: number
   /** Component-owned class carrying the hero mark's placement. */
   readonly className?: string
-}
-
-/** Minimal slots face used by this self-contained browser skin. */
-interface CrtSlotsService {
-  /** Register a component at a named client UI slot. */
-  register(spec: { name: string }, component: (props: CrtHeroBrandMarkProps) => unknown): unknown
-  /** Install slot registrations when their host package is ready. */
-  inject(slotName: string, install: () => unknown): void
 }
 
 /** Original text and label retained while the skin owns a hero title element. */
@@ -352,46 +364,6 @@ function CrtWhaleMark({ size, className }: CrtHeroBrandMarkProps): ReturnType<ty
   )
 }
 
-/** Read the persisted effects preference; missing storage defaults to on. */
-function effectsEnabled(): boolean {
-  try {
-    const stored = localStorage.getItem(EFFECTS_STORAGE_KEY)
-    if (stored !== null) return stored !== '0'
-  } catch {
-    // Storage may be unavailable in embedded contexts; default to on.
-  }
-  return true
-}
-
-/** Persist the effects preference (best effort). */
-function persistEffects(enabled: boolean): void {
-  try {
-    localStorage.setItem(EFFECTS_STORAGE_KEY, enabled ? '1' : '0')
-  } catch {
-    // Ignore storage errors — the in-memory class still applies this load.
-  }
-}
-
-/** Read the last selected palette; legacy names migrate to their EVA successors. */
-function persistedScheme(): CrtScheme {
-  try {
-    const stored = localStorage.getItem(SCHEME_STORAGE_KEY)
-    return normalizeScheme(stored === 'unit01' || stored === 'violet' || stored === 'amber' ? stored : 'unit02')
-  } catch {
-    // Storage may be unavailable in embedded contexts; Unit-02 is still usable.
-  }
-  return 'unit02'
-}
-
-/** Persist the selected palette (best effort). */
-function persistScheme(scheme: CrtScheme): void {
-  try {
-    localStorage.setItem(SCHEME_STORAGE_KEY, scheme)
-  } catch {
-    // Ignore storage errors — the in-memory palette still applies this load.
-  }
-}
-
 /** The public toggle API, matching the standalone crt.js surface. */
 interface CrtApi {
   enable(): void
@@ -412,25 +384,59 @@ interface CrtApi {
 export function apply(ctx: Context): void {
   const theme = ctx.get('theme') as CrtThemeService | undefined
   const slots = ctx.get('slots') as CrtSlotsService | undefined
-  if (theme === undefined || slots === undefined) return
+  if (slots === undefined) return
 
-  // Dynamic client packages own one override layer. Re-applying this source
-  // replaces the prior palette atomically; unloading restores DSH tokens.
-  let scheme = persistedScheme()
-  const applyScheme = (next: CrtScheme): void => {
-    scheme = next
-    persistScheme(scheme)
+  // The preference store is the single owner of both switches and the palette;
+  // every surface below reads it and every change flows back through the
+  // subscription, so panel, shortcut, and window API cannot drift apart.
+  let releaseTokens: (() => void) | undefined
+  let scheme: CrtScheme = getPreferences().scheme
+
+  const syncPreferences = (): void => {
+    const preferences = getPreferences()
+    if (theme === undefined) {
+      // Without the theme service only the effect layer and the panel remain.
+      scheme = preferences.scheme
+    } else if (preferences.enabled) {
+      scheme = preferences.scheme
+      releaseTokens = theme.overrideTokens(THEME_ID, schemeOverrides(scheme))
+    } else {
+      releaseTokens?.()
+      releaseTokens = undefined
+    }
     document.documentElement.setAttribute(SCHEME_ATTRIBUTE, scheme)
-    theme.overrideTokens(THEME_ID, schemeOverrides(scheme))
+    document.documentElement.classList.toggle(ACTIVE_CLASS, preferences.effects)
   }
-  applyScheme(scheme)
+
+  ctx.effect(() => {
+    syncPreferences()
+    const unsubscribe = subscribePreferences(syncPreferences)
+    return () => {
+      unsubscribe()
+      releaseTokens?.()
+      releaseTokens = undefined
+    }
+  })
+
+  // The panel is registered outside the preference effect: switching the color
+  // scheme off must never take away the control that switches it back on.
+  slots.inject('settings.section', () =>
+    slots.register(
+      {
+        id: SETTINGS_SECTION_ID,
+        label: () => SETTINGS_SECTION_LABEL,
+        name: 'settings.section',
+        order: 50,
+      },
+      CrtSettingsPanel as (props: unknown) => unknown,
+    ))
 
   // The icon has official sidebar and hero slots. The title does not, so
   // retain and restore the host's text while the skin owns the headline.
   slots.inject('sidebar.brand.mark', () =>
     slots.inject('conversation.hero.brand.mark', function* () {
-      yield slots.register({ name: 'sidebar.brand.mark' }, CrtWhaleMark)
-      yield slots.register({ name: 'conversation.hero.brand.mark' }, CrtWhaleMark)
+      yield slots.register({ name: 'sidebar.brand.mark' }, CrtWhaleMark as (props: unknown) => unknown)
+      yield slots.register({ name: 'conversation.hero.brand.mark' }, CrtWhaleMark as (props: unknown) => unknown)
     }))
 
   const heroTitles = new Map<HTMLElement, HeroTitleState>()
@@ -447,39 +453,26 @@ export function apply(ctx: Context): void {
   const headlineObserver = new MutationObserver(applyHeroHeadline)
   headlineObserver.observe(document.body, { characterData: true, childList: true, subtree: true })
 
-  // Hardware-effect layer (scanlines, vignette, flicker) + toggle shortcut.
-  let active = effectsEnabled()
-  const applyActive = (): void => {
-    document.documentElement.classList.toggle(ACTIVE_CLASS, active)
-  }
-  applyActive()
-
-  const setActive = (next: boolean): void => {
-    active = next
-    persistEffects(active)
-    applyActive()
-  }
-
   const onKeyDown = (event: KeyboardEvent): void => {
     if ((event.ctrlKey || event.metaKey) && event.shiftKey && event.altKey && event.code === 'KeyC') {
       event.preventDefault()
-      setActive(!active)
+      updatePreferences({ effects: !getPreferences().effects })
     }
     if ((event.ctrlKey || event.metaKey) && event.shiftKey && event.altKey && event.code === 'KeyP') {
       event.preventDefault()
-      applyScheme(scheme === 'unit02' ? 'unit01' : 'unit02')
+      updatePreferences({ scheme: getPreferences().scheme === 'unit02' ? 'unit01' : 'unit02' })
     }
   }
   document.addEventListener('keydown', onKeyDown)
 
   const api: CrtApi = {
-    enable: () => setActive(true),
-    disable: () => setActive(false),
-    toggle: () => setActive(!active),
-    isActive: () => active,
-    getScheme: () => scheme,
-    setScheme: (next) => applyScheme(normalizeScheme(next)),
-    toggleScheme: () => applyScheme(scheme === 'unit02' ? 'unit01' : 'unit02'),
+    enable: () => updatePreferences({ enabled: true }),
+    disable: () => updatePreferences({ enabled: false }),
+    toggle: () => updatePreferences({ enabled: !getPreferences().enabled }),
+    isActive: () => getPreferences().enabled,
+    getScheme: () => getPreferences().scheme,
+    setScheme: (next) => updatePreferences({ scheme: normalizeScheme(next) }),
+    toggleScheme: () => updatePreferences({ scheme: getPreferences().scheme === 'unit02' ? 'unit01' : 'unit02' }),
     version: '0.8.1',
   }
   ;(window as { DSHCRT?: CrtApi }).DSHCRT = api
